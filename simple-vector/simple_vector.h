@@ -8,6 +8,8 @@
 #include <type_traits>
 #include <utility>
 
+#include "array_ptr.h"
+
 using namespace std::string_literals;
 
 struct ReserveProxyObj {
@@ -29,41 +31,31 @@ public:
     SimpleVector() noexcept = default;
 
     // Создаёт вектор из size элементов, инициализированных значением по умолчанию
-    explicit SimpleVector(size_t size) {
+    explicit SimpleVector(size_t size) 
+    : array_(size) {
         capacity_ = size;
-        array_ = new Type[size];
-        for (size_t i = 0; i < size; ++i) {
-            array_[i] = Type();
-        }
+        std::fill_n(&array_[0], size, Type());
         size_ = size;
 
     }
 
     // Создаёт вектор из size элементов, инициализированных значением value
-    SimpleVector(size_t size, const Type& value) {
+    SimpleVector(size_t size, const Type& value) 
+    : array_(size) {
         capacity_ = size;
-        array_ = new Type[size];
-        for (size_t i = 0; i < size; ++i) {
-            array_[i] = value;
-        }
+        std::fill_n(&array_[0], size, value);
         size_ = size;
     }
 
     // Создаёт вектор из std::initializer_list
-    SimpleVector(std::initializer_list<Type> init) {
-        int init_size = static_cast<int>(init.size());
-        capacity_ = init_size;
-        array_ = new Type[init_size];
-        int i = 0;
-        for (Type element : init) {
-            array_[i] = element;
-            ++i;
-        }
-        size_ = init_size;
+    SimpleVector(std::initializer_list<Type> init) 
+    : array_(init.size()) {
+        capacity_ = static_cast<int>(init.size());
+        std::copy(init.begin(), init.end(), &array_[0]);
+        size_ = static_cast<int>(init.size());
     }
 
     ~SimpleVector() {
-        delete[] array_;
     }
 
     // Возвращает количество элементов в массиве
@@ -83,11 +75,13 @@ public:
 
     // Возвращает ссылку на элемент с индексом index
     Type& operator[](size_t index) noexcept {
+        assert(index < size_);
         return array_[index];
     }
 
     // Возвращает константную ссылку на элемент с индексом index
     const Type& operator[](size_t index) const noexcept {
+        assert(index < size_);
         return array_[index];
     }
 
@@ -128,7 +122,7 @@ public:
                 }
                 size_ = new_size;
             } else {
-                Type* new_array = new Type[new_size];
+                ArrayPtr<Type> new_array(new_size);
                 for (size_t i = 0; i < size_; ++i) {
                     new_array[i] = std::move(array_[i]);
                 }
@@ -137,9 +131,7 @@ public:
                 }
                 capacity_ = new_size;
                 size_ = new_size;
-                Type* array_to_delete = array_;
-                array_ = new_array;
-                delete[] array_to_delete;
+                array_.swap(new_array);
             }            
         }
     }
@@ -198,7 +190,7 @@ public:
 
     // Обменивает значение с другим вектором
     void swap(SimpleVector& other) noexcept {
-        std::swap(array_, other.array_);
+        array_.swap(other.array_);
         std::swap(size_, other.size_);
         std::swap(capacity_, other.capacity_);
     }
@@ -207,14 +199,12 @@ public:
         if (new_capacity <= capacity_) {
             return;
         } else {
-            Type* new_array = new Type[new_capacity];
+            ArrayPtr<Type> new_array(new_capacity);
             for (size_t i = 0; i < size_; ++i) {
                 new_array[i] = std::move(array_[i]);
             }
             capacity_ = new_capacity;
-            Type* array_to_delete = array_;
-            array_ = new_array;
-            delete[] array_to_delete;
+            array_.swap(new_array);
         }
     }
 
@@ -282,6 +272,7 @@ public:
     // Если перед вставкой значения вектор был заполнен полностью,
     // вместимость вектора должна увеличиться вдвое, а для вектора вместимостью 0 стать равной 1
     Iterator Insert(ConstIterator pos, const Type& value) {
+        assert(pos >= begin() && pos <= end());
         int pos_index = pos - begin();
         if (capacity_ == 0) {
             Reserve(1);
@@ -296,6 +287,7 @@ public:
     }
 
     Iterator Insert(ConstIterator pos, Type&& value) {
+        assert(pos >= begin() && pos <= end());
         int pos_index = pos - begin();
         if (capacity_ == 0) {
             Reserve(1);
@@ -318,6 +310,7 @@ public:
 
     // Удаляет элемент вектора в указанной позиции
     Iterator Erase(ConstIterator pos) {
+        assert(pos >= begin() && pos < end());
         int pos_index = pos - begin();
         std::move(&array_[pos_index + 1], &array_[size_], &array_[pos_index]);
         --size_;
@@ -327,7 +320,7 @@ public:
 
 
 private:
-    Type* array_ = nullptr;
+    ArrayPtr<Type> array_;
     size_t size_ = 0;
     size_t capacity_ = 0;
 
