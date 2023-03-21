@@ -24,6 +24,17 @@ public:
     {        
     }
 
+    ArrayPtr(ArrayPtr&& other) {
+        swap(other);
+    }
+
+    ArrayPtr& operator=(ArrayPtr&& rhs) {
+        if (*this != rhs) {
+            swap(rhs);
+        }
+        return *this;
+    }
+
     // Запрещаем копирование
     ArrayPtr(const ArrayPtr&) = delete;
 
